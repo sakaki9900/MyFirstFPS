@@ -8,6 +8,7 @@ public class PlayerMovement : MonoBehaviour
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 6f;
     [SerializeField] private float groundDrag = 5f;
+    [SerializeField] private float jumpForce = 7f;
 
     [Header("Ground Check")]
     [SerializeField] private float playerHeight = 2f;
@@ -21,6 +22,7 @@ public class PlayerMovement : MonoBehaviour
     private Collider[] cachedColliders;
     private Vector2 moveInput;
     private bool grounded;
+    private bool jumpQueued;
 
     private void Start()
     {
@@ -54,6 +56,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
+        ApplyJump();
         MovePlayer();
     }
 
@@ -86,12 +89,34 @@ public class PlayerMovement : MonoBehaviour
             }
 
             moveInput = new Vector2(horizontal, vertical);
+            if (Keyboard.current.spaceKey.wasPressedThisFrame && grounded)
+            {
+                jumpQueued = true;
+            }
             return;
         }
 #endif
 
         moveInput.x = Input.GetAxisRaw("Horizontal");
         moveInput.y = Input.GetAxisRaw("Vertical");
+        if (Input.GetKeyDown(KeyCode.Space) && grounded)
+        {
+            jumpQueued = true;
+        }
+    }
+
+    private void ApplyJump()
+    {
+        if (!jumpQueued)
+        {
+            return;
+        }
+
+        jumpQueued = false;
+
+        Vector3 velocity = GetVelocity();
+        SetVelocity(new Vector3(velocity.x, 0f, velocity.z));
+        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
     }
 
     private void MovePlayer()
