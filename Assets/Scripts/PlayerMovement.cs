@@ -6,7 +6,8 @@ using UnityEngine.InputSystem;
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
-    [SerializeField] private float moveSpeed = 6f;
+    [SerializeField] private float walkSpeed = 6f;
+    [SerializeField] private float sprintingSpeed = 12f;
     [SerializeField] private float groundDrag = 5f;
     [SerializeField] private float jumpForce = 7f;
 
@@ -23,6 +24,7 @@ public class PlayerMovement : MonoBehaviour
     private Vector2 moveInput;
     private bool grounded;
     private bool jumpQueued;
+    private bool sprinting;
 
     private void Start()
     {
@@ -48,6 +50,7 @@ public class PlayerMovement : MonoBehaviour
     private void Update()
     {
         grounded = IsGrounded();
+        sprinting = grounded && IsSprintHeld();
         SetDrag(grounded ? groundDrag : 0f);
 
         ProcessInput();
@@ -129,21 +132,27 @@ public class PlayerMovement : MonoBehaviour
         right.y = 0f;
 
         Vector3 moveDirection = forward.normalized * moveInput.y + right.normalized * moveInput.x;
-        rb.AddForce(moveDirection.normalized * moveSpeed * 10f, ForceMode.Force);
+        rb.AddForce(moveDirection.normalized * CurrentMoveSpeed() * 10f, ForceMode.Force);
     }
 
     private void SpeedControl()
     {
         Vector3 velocity = GetVelocity();
         Vector3 flatVelocity = new Vector3(velocity.x, 0f, velocity.z);
+        float currentMoveSpeed = CurrentMoveSpeed();
 
-        if (flatVelocity.magnitude <= moveSpeed)
+        if (flatVelocity.magnitude <= currentMoveSpeed)
         {
             return;
         }
 
-        Vector3 limitedVelocity = flatVelocity.normalized * moveSpeed;
+        Vector3 limitedVelocity = flatVelocity.normalized * currentMoveSpeed;
         SetVelocity(new Vector3(limitedVelocity.x, velocity.y, limitedVelocity.z));
+    }
+
+    private float CurrentMoveSpeed()
+    {
+        return sprinting ? sprintingSpeed : walkSpeed;
     }
 
     private bool IsGrounded()
@@ -197,5 +206,17 @@ public class PlayerMovement : MonoBehaviour
 #else
         rb.drag = dragAmount;
 #endif
+    }
+
+    private bool IsSprintHeld()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (Keyboard.current != null)
+        {
+            return Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
+        }
+#endif
+
+        return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
     }
 }
