@@ -8,6 +8,8 @@ public class PlayerMovement : MonoBehaviour
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 6f;
     [SerializeField] private float sprintingSpeed = 12f;
+    [SerializeField] private float crouchSpeed = 3f;
+    [SerializeField] private float crouchTransitionDuration = 0.5f;
     [SerializeField] private float groundDrag = 5f;
     [SerializeField] private float jumpForce = 7f;
 
@@ -18,13 +20,26 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("References")]
     [SerializeField] private Transform orientation;
+    [SerializeField] private Transform cameraPos;
 
     private Rigidbody rb;
     private Collider[] cachedColliders;
+    private CapsuleCollider playerCollider;
+    private Transform playerVisual;
     private Vector2 moveInput;
     private bool grounded;
     private bool jumpQueued;
     private bool sprinting;
+    private bool crouching;
+    private float crouchBlend;
+    private float crouchBlendVelocity;
+    private Vector3 standingCameraLocalPosition;
+    private Vector3 standingVisualLocalScale;
+    private Vector3 standingVisualLocalPosition;
+    private Vector3 standingColliderCenter;
+    private float standingColliderHeight;
+    private float standingEyeHeightFromFeet;
+    private float crouchingEyeHeightFromFeet;
 
     private void Start()
     {
@@ -45,15 +60,43 @@ public class PlayerMovement : MonoBehaviour
             Transform orientationChild = transform.Find("Orientation");
             orientation = orientationChild != null ? orientationChild : transform;
         }
+
+        if (cameraPos == null)
+        {
+            cameraPos = transform.Find("CameraPos");
+        }
+
+        if (cameraPos != null)
+        {
+            standingCameraLocalPosition = cameraPos.localPosition;
+        }
+
+        playerCollider = GetComponentInChildren<CapsuleCollider>();
+        if (playerCollider != null)
+        {
+            playerVisual = playerCollider.transform;
+            standingColliderHeight = playerCollider.height;
+            standingColliderCenter = playerCollider.center;
+            standingEyeHeightFromFeet = standingCameraLocalPosition.y - StandingFeetLocalY();
+            crouchingEyeHeightFromFeet = standingEyeHeightFromFeet * 0.5f;
+
+            if (playerVisual != null)
+            {
+                standingVisualLocalScale = playerVisual.localScale;
+                standingVisualLocalPosition = playerVisual.localPosition;
+            }
+        }
     }
 
     private void Update()
     {
         grounded = IsGrounded();
-        sprinting = grounded && IsSprintHeld();
+        crouching = IsCrouchHeld();
+        sprinting = grounded && !crouching && IsSprintHeld();
         SetDrag(grounded ? groundDrag : 0f);
 
         ProcessInput();
+        UpdateCrouchState(Time.deltaTime);
         SpeedControl();
     }
 
@@ -152,7 +195,64 @@ public class PlayerMovement : MonoBehaviour
 
     private float CurrentMoveSpeed()
     {
+        if (crouching)
+        {
+            return crouchSpeed;
+        }
+
         return sprinting ? sprintingSpeed : walkSpeed;
+    }
+
+    private void UpdateCrouchState(float deltaTime)
+    {
+        if (playerCollider == null)
+        {
+            return;
+        }
+
+        float targetBlend = crouching ? 1f : 0f;
+        float smoothTime = Mathf.Max(0.01f, crouchTransitionDuration);
+        crouchBlend = Mathf.SmoothDamp(crouchBlend, targetBlend, ref crouchBlendVelocity, smoothTime, Mathf.Infinity, deltaTime);
+        if (Mathf.Abs(targetBlend - crouchBlend) < 0.001f)
+        {
+            crouchBlend = targetBlend;
+        }
+
+        float colliderHeight = Mathf.Lerp(standingColliderHeight, standingColliderHeight * 0.5f, crouchBlend);
+        Vector3 colliderCenter = standingColliderCenter;
+        colliderCenter.y = standingColliderCenter.y - (standingColliderHeight - colliderHeight) * 0.5f;
+        playerCollider.height = colliderHeight;
+        playerCollider.center = colliderCenter;
+
+        if (playerVisual != null)
+        {
+            Vector3 visualScale = standingVisualLocalScale;
+            visualScale.y = Mathf.Lerp(standingVisualLocalScale.y, standingVisualLocalScale.y * 0.5f, crouchBlend);
+
+            Vector3 visualPosition = standingVisualLocalPosition;
+            visualPosition.y = standingVisualLocalPosition.y - (standingColliderHeight - colliderHeight) * 0.5f;
+
+            playerVisual.localScale = visualScale;
+            playerVisual.localPosition = visualPosition;
+        }
+
+        if (cameraPos != null)
+        {
+            Vector3 targetCameraLocalPosition = standingCameraLocalPosition;
+            float eyeHeightFromFeet = Mathf.Lerp(standingEyeHeightFromFeet, crouchingEyeHeightFromFeet, crouchBlend);
+            targetCameraLocalPosition.y = FeetLocalY(colliderCenter, colliderHeight) + eyeHeightFromFeet;
+            cameraPos.localPosition = targetCameraLocalPosition;
+        }
+    }
+
+    private float StandingFeetLocalY()
+    {
+        return FeetLocalY(standingColliderCenter, standingColliderHeight);
+    }
+
+    private static float FeetLocalY(Vector3 colliderCenter, float colliderHeight)
+    {
+        return colliderCenter.y - colliderHeight * 0.5f;
     }
 
     private bool IsGrounded()
@@ -218,5 +318,17 @@ public class PlayerMovement : MonoBehaviour
 #endif
 
         return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+    }
+
+    private bool IsCrouchHeld()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (Keyboard.current != null)
+        {
+            return Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
+        }
+#endif
+
+        return Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
     }
 }
