@@ -42,6 +42,12 @@ public class ProjectileGun : MonoBehaviour
     public bool reloading;
     public bool allowInvoke = true;
 
+    public bool IsReadyToShoot => readyToShoot;
+    public Transform ShootPoint => shootPoint;
+    public GameObject BulletPrefab => bullet;
+    public Light MuzzleFlashLight => muzzleFlashLight;
+    public ParticleSystem MuzzleFlashParticles => muzzleFlashParticles;
+
     private void Reset()
     {
         AutoAssignReferences();
@@ -308,5 +314,50 @@ public class ProjectileGun : MonoBehaviour
         }
 #endif
         return Input.GetKeyDown(KeyCode.R);
+    }
+
+    public void ConfigureReferences(
+        Transform newShootPoint,
+        Light newMuzzleFlashLight,
+        ParticleSystem newMuzzleFlashParticles,
+        Camera newPlayerCam,
+        GameObject newBullet)
+    {
+        shootPoint = newShootPoint;
+        muzzleFlashLight = newMuzzleFlashLight;
+        muzzleFlashParticles = newMuzzleFlashParticles;
+        playerCam = newPlayerCam;
+
+        if (newBullet != null)
+        {
+            bullet = newBullet;
+        }
+    }
+
+    public void ApplySettingsFrom(ProjectileGun source)
+    {
+        if (source == null)
+        {
+            return;
+        }
+
+        fallbackBulletScale = source.fallbackBulletScale;
+        fallbackBulletLifetime = source.fallbackBulletLifetime;
+        useMuzzleFlash = source.useMuzzleFlash;
+        muzzleFlashDuration = source.muzzleFlashDuration;
+        shootForce = source.shootForce;
+        timeBetweenShooting = source.timeBetweenShooting;
+        timeBetweenShots = source.timeBetweenShots;
+        spread = source.spread;
+        reloadTime = source.reloadTime;
+        magazineSize = source.magazineSize;
+        bulletsPerTap = source.bulletsPerTap;
+        allowButtonHold = source.allowButtonHold;
+        ignoreLayer = source.ignoreLayer;
+
+        if (source.bullet != null)
+        {
+            bullet = source.bullet;
+        }
     }
 }
