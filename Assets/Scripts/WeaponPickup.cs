@@ -3,6 +3,9 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class WeaponPickup : MonoBehaviour
 {
+    private const string EquippedLayerName = "Weapon";
+    private const string DroppedLayerName = "Default";
+
     [Header("Display")]
     [SerializeField] private string weaponDisplayName = "Weapon";
 
@@ -121,6 +124,7 @@ public class WeaponPickup : MonoBehaviour
         }
 
         SetCollidersEnabled(false);
+        ApplyLayerRecursively(LayerMask.NameToLayer(EquippedLayerName));
 
         if (projectileGun != null)
         {
@@ -142,6 +146,7 @@ public class WeaponPickup : MonoBehaviour
         }
 
         SetCollidersEnabled(true);
+        ApplyLayerRecursively(LayerMask.NameToLayer(DroppedLayerName));
 
         if (weaponRigidbody != null)
         {
@@ -331,6 +336,7 @@ public class WeaponPickup : MonoBehaviour
         }
 
         SetCollidersEnabled(!shouldBeEquipped);
+        ApplyLayerRecursively(LayerMask.NameToLayer(shouldBeEquipped ? EquippedLayerName : DroppedLayerName));
 
         if (projectileGun != null)
         {
@@ -343,6 +349,31 @@ public class WeaponPickup : MonoBehaviour
         return projectileGun != null
             && transform.parent != null
             && (transform.parent.name == "WeaponHolder" || transform.parent.GetComponentInParent<Camera>() != null);
+    }
+
+    private void ApplyLayerRecursively(int layer)
+    {
+        if (layer < 0)
+        {
+            return;
+        }
+
+        ApplyLayerRecursively(transform, layer);
+    }
+
+    private static void ApplyLayerRecursively(Transform root, int layer)
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        root.gameObject.layer = layer;
+
+        for (int i = 0; i < root.childCount; i++)
+        {
+            ApplyLayerRecursively(root.GetChild(i), layer);
+        }
     }
 
     private void ResetVelocityIfDynamic()
